@@ -31,7 +31,7 @@ class MenuGenerator(object):
     ##########################################################################################
     # public methods
 
-    def create_menu(self, *args):
+    def create_menu(self):
         """
         Render the entire Tank menu.
         In order to have commands enable/disable themselves based on the enable_callback, 
@@ -42,7 +42,6 @@ class MenuGenerator(object):
         # now add the context item on top of the main menu
         self._context_menu = self._add_context_menu()
         pm.menuItem(divider=True, parent=self._menu_handle)
-
 
         # now enumerate all items and create menu objects for them
         menu_items = []
@@ -269,11 +268,13 @@ class AppCommand(object):
             "command": Callback(self.callback),
             "parent": parent_menu,
         }
+
         if "tooltip" in self.properties:
             params["annotation"] = self.properties["tooltip"]
-        if "enable_callback" in self.properties:
-            params["enable"] = self.properties["enable_callback"]()
             
+        if "description" in self.properties:
+            params["annotation"] = self.properties["tooltip"]
+
         pm.menuItem(**params)
         
     def _find_sub_menu_item(self, menu, label):
