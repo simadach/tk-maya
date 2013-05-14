@@ -273,7 +273,7 @@ class AppCommand(object):
             params["annotation"] = self.properties["tooltip"]
             
         if "description" in self.properties:
-            params["annotation"] = self.properties["tooltip"]
+            params["annotation"] = self.properties["description"]
 
         pm.menuItem(**params)
         
