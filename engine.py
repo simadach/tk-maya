@@ -237,19 +237,10 @@ class MayaEngine(tank.platform.Engine):
     ##########################################################################################
     # init and destroy
     
-    def pre_app_init(self):
-        """
-        Runs after the engine is set up but before any apps have been initialized.
-        """        
-        # unicode characters returned by the shotgun api need to be converted
-        # to display correctly in all of the app windows
-        from tank.platform.qt import QtCore
-        # tell QT to interpret C strings as utf-8
-        utf8 = QtCore.QTextCodec.codecForName("utf-8")
-        QtCore.QTextCodec.setCodecForCStrings(utf8)
-        self.log_debug("set utf-8 codec for widget text")
-
     def init_engine(self):
+        """
+        Runs during engine contstruction but before Qt, etc. have been initialised.
+        """
         self.log_debug("%s: Initializing..." % self)
         
         # check that we are running an ok version of maya
@@ -314,6 +305,18 @@ class MayaEngine(tank.platform.Engine):
         cb_fn = lambda en=self.instance_name, pc=self.context, mn=self._menu_name:on_scene_event_callback(en, pc, mn)
         self.__watcher = SceneEventWatcher(cb_fn)
         self.log_debug("Registered open and save callbacks.")
+                
+    def pre_app_init(self):
+        """
+        Runs after the engine is set up but before any apps have been initialized.
+        """        
+        # unicode characters returned by the shotgun api need to be converted
+        # to display correctly in all of the app windows
+        from tank.platform.qt import QtCore
+        # tell QT to interpret C strings as utf-8
+        utf8 = QtCore.QTextCodec.codecForName("utf-8")
+        QtCore.QTextCodec.setCodecForCStrings(utf8)
+        self.log_debug("set utf-8 codec for widget text")                
                 
     def post_app_init(self):
         """
@@ -425,7 +428,11 @@ class MayaEngine(tank.platform.Engine):
     # logging
     
     def log_debug(self, msg):
+        """
+        Log debug to the Maya script editor
         
+        :param msg:    The message to log
+        """
         global g_last_message_time
         
         # get the time stamps
@@ -435,24 +442,38 @@ class MayaEngine(tank.platform.Engine):
         # update global counter
         g_last_message_time = current_time
         
-        if self.get_setting("debug_logging", False):
-            msg = "Shotgun Debug [%0.3fs]: %s" % ((current_time-prev_time), msg)
-            for l in textwrap.wrap(msg, CONSOLE_OUTPUT_WIDTH):
-                OpenMaya.MGlobal.displayInfo(l)
+        if not self.get_setting("debug_logging", False):
+            return
+
+        msg = "Shotgun Debug [%0.3fs]: %s" % ((current_time-prev_time), msg)
+        self.execute_in_main_thread(OpenMaya.MGlobal.displayInfo, msg)
     
     def log_info(self, msg):
+        """
+        Log info to the Maya script editor
+        
+        :param msg:    The message to log
+        """
         msg = "Shotgun: %s" % msg
-        for l in textwrap.wrap(msg, CONSOLE_OUTPUT_WIDTH):
-            OpenMaya.MGlobal.displayInfo(l)
+        self.execute_in_main_thread(OpenMaya.MGlobal.displayInfo, msg)
         
     def log_warning(self, msg):
+        """
+        Log warning to the Maya script editor
+        
+        :param msg:    The message to log
+        """
         msg = "Shotgun: %s" % msg
-        for l in textwrap.wrap(msg, CONSOLE_OUTPUT_WIDTH):
-            OpenMaya.MGlobal.displayWarning(l)
+        self.execute_in_main_thread(OpenMaya.MGlobal.displayWarning, msg)
     
     def log_error(self, msg):
+        """
+        Log error to the Maya script editor
+        
+        :param msg:    The message to log
+        """
         msg = "Shotgun: %s" % msg
-        OpenMaya.MGlobal.displayError(msg)
+        self.execute_in_main_thread(OpenMaya.MGlobal.displayError, msg)
     
     ##########################################################################################
     # scene and project management            
