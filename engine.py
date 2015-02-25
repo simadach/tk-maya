@@ -405,13 +405,69 @@ class MayaEngine(tank.platform.Engine):
         """
         # Find a parent for the dialog - this is the Maya mainWindow()
         from tank.platform.qt import QtGui
-        import maya.OpenMayaUI as OpenMayaUI
+        from maya import OpenMayaUI
         import shiboken
 
         ptr = OpenMayaUI.MQtUtil.mainWindow()
         parent = shiboken.wrapInstance(long(ptr), QtGui.QMainWindow)
         
         return parent 
+
+    def show_dialog(self, title, bundle, widget_class, *args, **kwargs):
+        """
+        Shows a non-modal dialog window in a way suitable for this engine. 
+        The engine will attempt to parent the dialog nicely to the host application.
+        
+        :param title: The title of the window
+        :param bundle: The app, engine or framework object that is associated with this window
+        :param widget_class: The class of the UI to be constructed. This must derive from QWidget.
+        
+        Additional parameters specified will be passed through to the widget_class constructor.
+        
+        :returns: the created widget_class instance
+        """
+        if not self.has_ui:
+            self.log_error("Sorry, this environment does not support UI display! Cannot show "
+                           "the requested window '%s'." % title)
+            return None
+        
+        from maya import cmds as mc
+        from maya import OpenMayaUI
+        from PySide import QtGui
+        import shiboken
+        from tank.platform.qt import tankqdialog
+                
+        # 1. use maya to create the window - this ensures parenting works as expected:
+        # (window options match the default options for a standard QDialog)
+        maya_win = mc.window(title=("Shotgun: %s" % title), minimizeButton=False)
+        
+        # 2. find the QWidget for this window:
+        qt_win_ptr = OpenMayaUI.MQtUtil.findWindow(maya_win)
+        qt_win = shiboken.wrapInstance(long(qt_win_ptr), QtGui.QWidget)
+        
+        # 3. construct the widget object 
+        widget = self._create_widget(widget_class, *args, **kwargs)
+
+        # 4. create the interior form directly parented to the maya window:
+        main_form = tankqdialog.TankMainForm(title, bundle, widget, qt_win)
+
+        # 5. fix up the layout so it does something sensible
+        layout = QtGui.QVBoxLayout()
+        layout.addWidget(main_form)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        qt_win.setLayout(layout)
+        
+        # 6. make sure the dialog window is closed if the internal widget is closed:
+        def on_delete_widget(exit_code):
+            if cmds.window(maya_win, query=True, exists=True):
+                cmds.deleteUI(maya_win)
+        main_form.widget_closed.connect(on_delete_widget)
+        
+        # 7. and show the window:
+        mc.showWindow(maya_win)
+        
+        return widget
         
     @property
     def has_ui(self):
