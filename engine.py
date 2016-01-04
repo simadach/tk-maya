@@ -14,12 +14,10 @@ A Maya engine for Tank.
 """
 
 import tank
-import platform
+import logging
 import sys
-import re
 import traceback
 import time
-import textwrap
 import os
 import maya.OpenMaya as OpenMaya
 import pymel.core as pm
@@ -225,6 +223,18 @@ def remove_sgtk_disabled_menu():
 
     return False
 
+
+class MayaLoggingHandler(logging.Handler):
+
+    def __init__(self, engine):
+        super(MayaLoggingHandler, self).__init__()
+        self.__engine = engine
+
+    def emit(self, record):
+        self.__engine.async_execute_in_main_thread(
+            OpenMaya.MGlobal.displayInfo, self.format(record)
+        )
+
 ###############################################################################################
 # The Tank Maya engine
 
@@ -239,7 +249,7 @@ class MayaEngine(tank.platform.Engine):
     def pre_app_init(self):
         """
         Runs after the engine is set up but before any apps have been initialized.
-        """        
+        """
         # unicode characters returned by the shotgun api need to be converted
         # to display correctly in all of the app windows
         from tank.platform.qt import QtCore
@@ -249,6 +259,9 @@ class MayaEngine(tank.platform.Engine):
         self.log_debug("set utf-8 codec for widget text")
 
     def init_engine(self):
+        logger = tank.logs.get_logger()
+        logger.addHandler(MayaLoggingHandler(self))
+
         self.log_debug("%s: Initializing..." % self)
         
         # check that we are running an ok version of maya
@@ -408,7 +421,14 @@ class MayaEngine(tank.platform.Engine):
         parent = shiboken.wrapInstance(long(ptr), QtGui.QMainWindow)
         
         return parent 
-        
+
+    @property
+    def host_version(self):
+        maya_ver = cmds.about(version=True)
+        if maya_ver.startswith("Maya "):
+            maya_ver = maya_ver[5:]
+        return maya_ver
+
     @property
     def has_ui(self):
         """
@@ -419,58 +439,7 @@ class MayaEngine(tank.platform.Engine):
             return False
         else:
             return True        
-    
-    ##########################################################################################
-    # logging
-    
-    def log_debug(self, msg):
-        """
-        Log debug to the Maya script editor
-        
-        :param msg: The message to log
-        """
-        global g_last_message_time
-        
-        # get the time stamps
-        prev_time = g_last_message_time
-        current_time = time.time()
-        
-        # update global counter
-        g_last_message_time = current_time
-        
-        if not self.get_setting("debug_logging", False):
-            return
 
-        msg = "Shotgun Debug [%0.3fs]: %s" % ((current_time-prev_time), msg)
-        self.async_execute_in_main_thread(OpenMaya.MGlobal.displayInfo, msg)
-    
-    def log_info(self, msg):
-        """
-        Log info to the Maya script editor
-        
-        :param msg: The message to log
-        """
-        msg = "Shotgun: %s" % msg
-        self.async_execute_in_main_thread(OpenMaya.MGlobal.displayInfo, msg)
-        
-    def log_warning(self, msg):
-        """
-        Log warning to the Maya script editor
-        
-        :param msg: The message to log
-        """
-        msg = "Shotgun: %s" % msg
-        self.async_execute_in_main_thread(OpenMaya.MGlobal.displayWarning, msg)
-    
-    def log_error(self, msg):
-        """
-        Log error to the Maya script editor
-        
-        :param msg: The message to log
-        """
-        msg = "Shotgun: %s" % msg
-        self.async_execute_in_main_thread(OpenMaya.MGlobal.displayError, msg)
-    
     ##########################################################################################
     # scene and project management            
         
