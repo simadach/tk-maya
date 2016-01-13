@@ -224,22 +224,8 @@ def remove_sgtk_disabled_menu():
     return False
 
 
-class MayaLoggingHandler(logging.Handler):
-
-    def __init__(self, engine):
-        super(MayaLoggingHandler, self).__init__()
-        self.__engine = engine
-
-    def emit(self, record):
-        self.__engine.async_execute_in_main_thread(
-            OpenMaya.MGlobal.displayInfo, self.format(record)
-        )
-
 ###############################################################################################
 # The Tank Maya engine
-
-# for debug logging with time stamps
-g_last_message_time = 0
 
 class MayaEngine(tank.platform.Engine):
 
@@ -259,9 +245,6 @@ class MayaEngine(tank.platform.Engine):
         self.log_debug("set utf-8 codec for widget text")
 
     def init_engine(self):
-        logger = tank.logs.get_logger()
-        logger.addHandler(MayaLoggingHandler(self))
-
         self.log_debug("%s: Initializing..." % self)
         
         # check that we are running an ok version of maya
