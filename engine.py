@@ -243,10 +243,11 @@ class MayaEngine(tank.platform.Engine):
         # unicode characters returned by the shotgun api need to be converted
         # to display correctly in all of the app windows
         from tank.platform.qt import QtCore
-        # tell QT to interpret C strings as utf-8
-        utf8 = QtCore.QTextCodec.codecForName("utf-8")
-        QtCore.QTextCodec.setCodecForCStrings(utf8)
-        self.log_debug("set utf-8 codec for widget text")
+        if hasattr(QtCore.QTextCodec, "setCodecForCStrings"):
+            # tell QT to interpret C strings as utf-8
+            utf8 = QtCore.QTextCodec.codecForName("utf-8")
+            QtCore.QTextCodec.setCodecForCStrings(utf8)
+            self.log_debug("set utf-8 codec for widget text")
 
     def init_engine(self):
         self.log_debug("%s: Initializing..." % self)
@@ -343,6 +344,33 @@ class MayaEngine(tank.platform.Engine):
         if self.has_ui and pm.menu(self._menu_handle, exists=True):
             pm.deleteUI(self._menu_handle)
     
+    def _define_qt_base(self):
+        base = {"qt_core": None, "qt_gui": None, "qt_widgets": None, "dialog_base": None}
+        try:
+            from PySide2 import QtCore, QtGui, QtWidgets
+            base["qt_core"] = QtCore
+            base["qt_gui"] = QtGui
+            base["qt_widgets"] = QtWidgets
+            base["dialog_base"] = QtWidgets.QDialog
+
+            # bring QtWidgets local to QtGui for compatibility until we port to Qt 5
+            for attr in dir(QtWidgets):
+                if not hasattr(QtGui, attr):
+                    setattr(QtGui, attr, getattr(QtWidgets, attr))
+
+            # along with other patches for compatibility
+            for attr in ["QAbstractProxyModel", "QIdentityProxyModel",
+                "QSortFilterProxyModel", "QItemSelectionModel"]:
+                if hasattr(QtCore, attr):
+                    setattr(QtGui, attr, getattr(QtCore, attr))
+
+            # define UnicodeUTF8 to be compatible with the new signature to QApplication.translate
+            QtGui.QApplication.UnicodeUTF8 = -1
+        except:
+            self.log_error("Unable to import PySide2")
+
+        return base
+
     def _init_pyside(self):
         """
         Handles the pyside init
@@ -350,15 +378,24 @@ class MayaEngine(tank.platform.Engine):
         
         # first see if pyside is already present - in that case skip!
         try:
-            from PySide import QtGui
+            from PySide2 import QtGui
+            # looks like pyside is already working! No need to do anything
+            self.log_debug("PySide2 detected - the existing version will be used.")
+            return
         except:
-            # fine, we don't expect pyside to be present just yet
-            self.log_debug("PySide not detected - it will be added to the setup now...")
-        else:
+            pass
+
+        # first see if pyside is already present - in that case skip!
+        try:
+            from PySide import QtGui
             # looks like pyside is already working! No need to do anything
             self.log_debug("PySide detected - the existing version will be used.")
             return
-        
+        except:
+            pass
+
+        # fine, we don't expect pyside to be present just yet
+        self.log_debug("PySide not detected - it will be added to the setup now...")
         
         if sys.platform == "darwin":
             pyside_path = os.path.join(self.disk_location, "resources","pyside112_py26_qt471_mac", "python")
@@ -408,7 +445,10 @@ class MayaEngine(tank.platform.Engine):
         # Find a parent for the dialog - this is the Maya mainWindow()
         from tank.platform.qt import QtGui
         import maya.OpenMayaUI as OpenMayaUI
-        import shiboken
+        try:
+            import shiboken2 as shiboken
+        except:
+            import shiboken
 
         ptr = OpenMayaUI.MQtUtil.mainWindow()
         parent = shiboken.wrapInstance(long(ptr), QtGui.QMainWindow)
