@@ -429,54 +429,22 @@ class MayaEngine(tank.platform.Engine):
     ##########################################################################################
     # logging
     
-    def log_debug(self, msg):
+    def _emit_log_message(self, handler, record):
         """
-        Log debug to the Maya script editor
-        
-        :param msg: The message to log
-        """
-        global g_last_message_time
-        
-        # get the time stamps
-        prev_time = g_last_message_time
-        current_time = time.time()
-        
-        # update global counter
-        g_last_message_time = current_time
-        
-        if not self.get_setting("debug_logging", False):
-            return
+        Called by the engine whenever a new log message is available.
+        All log messages from the toolkit logging namespace will be passed to this method.
 
-        msg = "Shotgun Debug [%0.3fs]: %s" % ((current_time-prev_time), msg)
+        :param handler: Log handler that this message was dispatched from
+        :type handler: :class:`~python.logging.LogHandler`
+        :param record: Std python logging record
+        :type record: :class:`~python.logging.LogRecord`
+        """
+        # default implementation doesn't do anything.
+        msg = handler.format(record)
         self.async_execute_in_main_thread(OpenMaya.MGlobal.displayInfo, msg)
-    
-    def log_info(self, msg):
-        """
-        Log info to the Maya script editor
-        
-        :param msg: The message to log
-        """
-        msg = "Shotgun: %s" % msg
-        self.async_execute_in_main_thread(OpenMaya.MGlobal.displayInfo, msg)
-        
-    def log_warning(self, msg):
-        """
-        Log warning to the Maya script editor
-        
-        :param msg: The message to log
-        """
-        msg = "Shotgun: %s" % msg
-        self.async_execute_in_main_thread(OpenMaya.MGlobal.displayWarning, msg)
-    
-    def log_error(self, msg):
-        """
-        Log error to the Maya script editor
-        
-        :param msg: The message to log
-        """
-        msg = "Shotgun: %s" % msg
-        self.async_execute_in_main_thread(OpenMaya.MGlobal.displayError, msg)
-    
+
+
+
     ##########################################################################################
     # scene and project management            
         
